@@ -140,24 +140,40 @@ fprintf('%8s| %9.2f %9.2f  [kJ/kg/K]\n','Total S',S1/kJ,S2/kJ);
 %% Difference between two approaches: so close but not identical
 fprintf('----------------------------------------------\n%8s| %9.4f %9.4f  [K]\n----------------------------------------------\n','T2-int vs T2-bis',T2int,T2bis);
 %% Here starts your part (compressor,combustor,turbine and nozzle). ...
-*%% [2-3] Compressor
-TR = 200:1:3000;                      % мелкая сетка (на слайде шаг 50 К → "not exactly correct")
-for i=1:NSp
-    hia(:,i) = HNasa(TR,SpS(i));
-    sia(:,i) = SNasa(TR,SpS(i));
-    h2i(i)   = HNasa(T2,SpS(i));
-    s2i(i)   = SNasa(T2,SpS(i));
+%% [2-3] Compressor                   
+sPart = 'Compressor';
+P3 = P2 * P3overP2;
+% Thermal part of entropy at state 2
+s2T = interp1(TR, sair_a, T2);
+% Isentropic compression: S3 = S2
+s3T = s2T + Rg*log(P3/P2);
+% Find T3 from thermal entropy
+T3 = interp1(sair_a, TR, s3T);
+% Find h3 from T3
+h3 = interp1(TR, hair_a, T3);
+% Velocity change neglected in compressor
+v3 = 0;
+% Calculate properties directly at T3
+for i = 1:NSp
+    h3i(i) = HNasa(T3,SpS(i));
+    s3i(i) = SNasa(T3,SpS(i));
 end
-hair_a = Yair*hia';                   % h_air(TR)
-sair_a = Yair*sia';                   % s_T,air(TR)
-h2 = Yair*h2i';  s2T = Yair*s2i';
-Rg = Runiv/MAir;
-
-P3   = P2*P3overP2;
-s3sT = s2T + Rg*log(P3/P2);           % изоэнтропа 2->3s (вместо Пуассона)
-T3s  = interp1(sair_a, TR, s3sT);
-h3s  = interp1(TR, hair_a, T3s);
-h3   = h2 + (h3s - h2)/eta_c;         % изоэнтропный КПД
-T3   = interp1(hair_a, TR, h3);
-Wc   = mair*(h3 - h2);                % [W], mair = AF*mfuel*
+h3check   = Yair*h3i';
+s3thermal = Yair*s3i';
+% Total entropy
+S2 = s2T      - Rg*log(P2/Pref);
+S3 = s3thermal - Rg*log(P3/Pref);
+% Compressor specific work(assuming v3=0)
+wc = h3 - h2;
+fprintf('\n');
+fprintf('Stage  ||%14s        [unit]\n      NR|%9i %9i\n',sPart,2,3);
+fprintf('-------------------------------------\n');
+fprintf('%8s| %9.2f %9.2f  [K]\n','Temp',T2,T3);
+fprintf('%8s| %9.2f %9.2f  [kPa]\n','Press',P2/kPa,P3/kPa);
+fprintf('%8s| %9.2f %9.2f  [m/s]\n','v',v2,v3);
+fprintf('---  H/S    -------------------------\n');
+fprintf('%8s| %9.2f %9.2f  [kJ/kg]\n','h',h2/kJ,h3/kJ);
+fprintf('%8s| %9.2f %9.2f  [kJ/kg/K]\n','Total S',S2/kJ,S3/kJ);
+fprintf('-------------------------------------\n');
+fprintf('%8s| %9.2f  [kJ/kg]\n','wc',wc/kJ);
 % Make a choice for which type of solution method you want to use.
