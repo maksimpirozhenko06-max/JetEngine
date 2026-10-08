@@ -142,29 +142,48 @@ fprintf('----------------------------------------------\n%8s| %9.4f %9.4f  [K]\n
 %% Here starts your part (compressor,combustor,turbine and nozzle). ...
 %% [2-3] Compressor                   
 sPart = 'Compressor';
+
 P3 = P2 * P3overP2;
+
 % Thermal part of entropy at state 2
 s2T = interp1(TR, sair_a, T2);
+
 % Isentropic compression: S3 = S2
 s3T = s2T + Rg*log(P3/P2);
+
 % Find T3 from thermal entropy
 T3 = interp1(sair_a, TR, s3T);
+
 % Find h3 from T3
 h3 = interp1(TR, hair_a, T3);
+
 % Velocity change neglected in compressor
 v3 = 0;
+
+Qdot_c = 0;% Adiabatic compressor
+
+% Compressor specific work(assuming v3=0)
+wc = h3 - h2 + 0.5*(v3^2-v2^2);
+
+mair = AF * mfurate;
+
+% Compressor work input
+Wdot_c = mair*wc - Qdot_c;
+
+
 % Calculate properties directly at T3
 for i = 1:NSp
     h3i(i) = HNasa(T3,SpS(i));
     s3i(i) = SNasa(T3,SpS(i));
 end
+
 h3check   = Yair*h3i';
 s3thermal = Yair*s3i';
+
 % Total entropy
-S2 = s2T      - Rg*log(P2/Pref);
+S2 = s2T       - Rg*log(P2/Pref);
 S3 = s3thermal - Rg*log(P3/Pref);
-% Compressor specific work(assuming v3=0)
-wc = h3 - h2;
+
 fprintf('\n');
 fprintf('Stage  ||%14s        [unit]\n      NR|%9i %9i\n',sPart,2,3);
 fprintf('-------------------------------------\n');
@@ -176,4 +195,81 @@ fprintf('%8s| %9.2f %9.2f  [kJ/kg]\n','h',h2/kJ,h3/kJ);
 fprintf('%8s| %9.2f %9.2f  [kJ/kg/K]\n','Total S',S2/kJ,S3/kJ);
 fprintf('-------------------------------------\n');
 fprintf('%8s| %9.2f  [kJ/kg]\n','wc',wc/kJ);
-% Make a choice for which type of solution method you want to use.
+fprintf('%8s| %9.2f  [kW]\n','Wdot_c',Wdot_c/kJ);
+%% [3-4] Combustor
+%----MASS----
+sPart = 'Combustor';
+
+mf    = mfurate;          % Fuel mass flow [kg/s]
+mair  = AF * mf;          % Air mass flow [kg/s]
+mdot4 = mair + mf;        % Product mass flow [kg/s]
+
+% Xair = [H2 O2 CO2 H2O N2]
+
+r = Xair(5)/Xair(2);     % N2/O2 molar ratio 
+
+
+a = AF*Mi(1) / (Mi(2) + r*Mi(5));% convert the  AF into the molar coefficient a
+
+
+% Inlet mole amounts
+N3 = [1, a, 0, 0, r*a];%compostion at the inlet [H2 O2 CO2 H2O N2]
+
+% Inlet mole fractions
+X3 = N3 / sum(N3);%compostion into ratio
+
+% Convert mole amounts to corresponding masses
+M3 = N3 .* Mi;
+
+% Inlet mass fractions
+Y3 = M3 / sum(M3);
+
+N4 = [0, a-0.5, 0, 1, r*a];%composition at the outlet [H2 O2 CO2 H2O N2]
+
+% Product mole fractions
+X4 = N4 / sum(N4);%composition out ratio
+
+% Convert mole amounts to corresponding masses
+M4 = N4 .* Mi;
+
+% Product mass fractions
+Y4 = M4 / sum(M4);
+
+%----Thermo computations----
+% Isobaric combustor
+P4 = P3;
+
+
+v4 = v3;% Neglect velocity change through combustor
+
+Qdot = 0;% Adiabatic combustor
+Wdot = 0;% No work
+
+Tfuel = Tamb;% Fuel inlet temperature
+
+hf = HNasa(Tfuel,SpS(1));% Specific enthalpy of H2 fuel
+
+
+
+h4 = (Qdot - Wdot + mair*h3 + mf*hf) / mdot4;% Energy conservation at v3=v4=0 W=0 Q=0
+
+h4_a = Y4 * hia';
+
+
+T4 = interp1(h4_a, TR, h4);% Find temperature corresponding to h4
+
+
+S4 = 0;
+
+for i = 1:NSp
+
+    if X4(i) > 0
+
+        s4i = SNasa(T4,SpS(i));%temperature part of the species i
+        Ri = Runiv/Mi(i);%specific gas const of the species i
+        P4i = X4(i)*P4;%partial pressure of the species i
+
+        S4 = S4 + Y4(i) *(s4i - Ri*log(P4i/Pref));
+
+    end
+end
