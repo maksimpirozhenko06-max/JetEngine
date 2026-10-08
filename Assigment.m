@@ -209,7 +209,7 @@ mdot4 = mair + mf;        % Product mass flow [kg/s]
 r = Xair(5)/Xair(2);     % N2/O2 molar ratio 
 
 
-a = AF*Mi(1) / (Mi(2) + r*Mi(5));% convert the  AF into the molar coefficient a
+a = AF*Mi(1) / (Mi(2) + r*Mi(5));% convert the AF into the molar coefficient a
 
 
 % Inlet mole amounts
@@ -224,17 +224,60 @@ M3 = N3 .* Mi;
 % Inlet mass fractions
 Y3 = M3 / sum(M3);
 
+
+% Outlet mole amounts
 N4 = [0, a-0.5, 0, 1, r*a];%composition at the outlet [H2 O2 CO2 H2O N2]
 
-% Product mole fractions
-X4 = N4 / sum(N4);%composition out ratio
+% Outlet mole fractions
+X4 = N4 / sum(N4);%composition into ratio
 
 % Convert mole amounts to corresponding masses
 M4 = N4 .* Mi;
 
-% Product mass fractions
+% Outlet mass fractions
 Y4 = M4 / sum(M4);
 
+
+% Equivalence ratio
+phi = 0.5/a;
+
+
+% Mixture molar masses
+Mmix3 = X3 * Mi';
+Mmix4 = X4 * Mi';
+
+% Specific gas constants at the inlet and oulet
+Rg3 = Runiv/Mmix3;
+Rg4 = Runiv/Mmix4;
+
+
+%----Table 2----
+
+Species = {'Fuel'; 'O2'; 'N2'; 'CO2'; 'H2O'; 'Rg [J/kg/K]'};
+
+Initial = [ ...
+    Y3(1);
+    Y3(2);
+    Y3(5);
+    Y3(3);
+    Y3(4);
+    Rg3
+    ];
+
+Final = [ ...
+    Y4(1);
+    Y4(2);
+    Y4(5);
+    Y4(3);
+    Y4(4);
+    Rg4
+    ];
+
+Table2 = table(Species, Initial, Final);
+
+fprintf('\nAF = %.2f\n',AF);
+fprintf('Equivalence ratio = %.4f\n',phi);
+disp(Table2);
 %----Thermo computations----
 % Isobaric combustor
 P4 = P3;
@@ -242,8 +285,6 @@ P4 = P3;
 
 v4 = v3;% Neglect velocity change through combustor
 
-Qdot = 0;% Adiabatic combustor
-Wdot = 0;% No work
 
 Tfuel = Tamb;% Fuel inlet temperature
 
@@ -251,7 +292,7 @@ hf = HNasa(Tfuel,SpS(1));% Specific enthalpy of H2 fuel
 
 
 
-h4 = (Qdot - Wdot + mair*h3 + mf*hf) / mdot4;% Energy conservation at v3=v4=0 W=0 Q=0
+h4 = (mair*h3 + mf*hf) / mdot4;% Energy conservation at v3=v4=0 W=0 Q=0
 
 h4_a = Y4 * hia';
 
@@ -273,3 +314,17 @@ for i = 1:NSp
 
     end
 end
+
+
+
+fprintf('\n');
+fprintf('Stage  ||%14s        [unit]\n      NR|%9i %9i\n',sPart,3,4);
+fprintf('-------------------------------------\n');
+fprintf('%8s| %9.2f %9.2f  [K]\n','Temp',T3,T4);
+fprintf('%8s| %9.2f %9.2f  [kPa]\n','Press',P3/kPa,P4/kPa);
+fprintf('%8s| %9.2f %9.2f  [m/s]\n','v',v3,v4);
+fprintf('---  H/S    -------------------------\n');
+fprintf('%8s| %9.2f %9.2f  [kJ/kg]\n','h',h3/kJ,h4/kJ);
+fprintf('%8s| %9.2f %9.2f  [kJ/kg/K]\n','Total S',S3/kJ,S4/kJ);
+fprintf('-------------------------------------\n');
+
